@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Dairy Intelligence Dashboard</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- React -->
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+
+  <!-- Babel -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- Axios -->
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(15px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0px);
+      }
+    }
+
+    .animate-fade-in {
+      animation: fadeIn 0.5s ease-in-out;
+    }
+  </style>
+</head>
+
+<body>
+
+<div id="root"></div>
+
+<script type="text/babel">
+
+const { useState, useEffect, useRef } = React;
+
+const products = [
+  "dahi",
+  "ghee",
+  "toned_milk",
+  "paneer",
+  "butter",
+  "fc_milk"
+];
+
+const productIcons = {
+  dahi: "🥛",
+  ghee: "🧈",
+  toned_milk: "🥛",
+  paneer: "🧀",
+  butter: "🧈",
+  fc_milk: "🥛",
+};
+
+const rbiInflationData = {
+  "05-2026": { milk: "4.1%", dahi: "3.8%", ghee: "3.2%", butter: "3.5%", paneer: "3.4%" },
+  "06-2026": { milk: "4.2%", dahi: "4.0%", ghee: "3.3%", butter: "3.6%", paneer: "3.6%" },
+  "07-2026": { milk: "4.4%", dahi: "4.3%", ghee: "3.5%", butter: "3.8%", paneer: "3.8%" },
+  "08-2026": { milk: "4.5%", dahi: "4.5%", ghee: "3.6%", butter: "4.0%", paneer: "4.0%" },
+  "09-2026": { milk: "4.8%", dahi: "4.9%", ghee: "4.2%", butter: "4.5%", paneer: "4.6%" },
+  "10-2026": { milk: "5.2%", dahi: "5.4%", ghee: "4.8%", butter: "5.0%", paneer: "5.1%" },
+  "11-2026": { milk: "5.1%", dahi: "5.2%", ghee: "4.6%", butter: "4.8%", paneer: "4.9%" },
+  "12-2026": { milk: "4.9%", dahi: "5.0%", ghee: "4.4%", butter: "4.6%", paneer: "4.7%" },
+  "01-2027": { milk: "4.7%", dahi: "4.6%", ghee: "4.1%", butter: "4.3%", paneer: "4.4%" },
+  "02-2027": { milk: "4.6%", dahi: "4.5%", ghee: "4.0%", butter: "4.2%", paneer: "4.2%" },
+  "03-2027": { milk: "4.7%", dahi: "4.6%", ghee: "4.1%", butter: "4.3%", paneer: "4.4%" },
+  "04-2027": { milk: "4.5%", dahi: "4.4%", ghee: "3.9%", butter: "4.0%", paneer: "4.1%" }
+};
+
+const monthNames = {
+  "01": "January",
+  "02": "February",
+  "03": "March",
+  "04": "April",
+  "05": "May",
+  "06": "June",
+  "07": "July",
+  "08": "August",
+  "09": "September",
+  "10": "October",
+  "11": "November",
+  "12": "December"
+};
+
+function Forecast() {
+
+  const [product, setProduct] = useState("fc_milk");
+  const [date, setDate] = useState("30-05-2026");
+  const [forecastData, setForecastData] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  const lineChartRef = useRef(null);
+  const barChartRef = useRef(null);
+
+  const getForecast = async () => {
+
+    try {
+
+      setLoading(true);
+
+      const res = await axios.get(
+        `http://127.0.0.1:8000/predict?product=${product}&date=${date}`
+      );
+
+      setForecastData(res.data.forecast);
+
+    } catch (err) {
+
+      console.log(err);
+
+      alert("Error fetching forecast data");
+
+    } finally {
+
+      setLoading(false);
+
+    }
+  };
+
+  // RBI Forecast Logic
+  const getRbi6MonthForecast = () => {
+
+    if (!date) return [];
+
+    const parts = date.split("-");
+
+    if (parts.length !== 3) return [];
+
+    let currentMonth = parseInt(parts[1], 10);
+    let currentYear = parseInt(parts[2], 10);
+
+    let dataKey = product;
+
+    if (product === "fc_milk" || product === "toned_milk") {
+      dataKey = "milk";
+    }
+
+    const forecasts = [];
+
+    for (let i = 0; i < 6; i++) {
+
+      const monthStr =
+        currentMonth < 10
+          ? `0${currentMonth}`
+          : `${currentMonth}`;
+
+      const yearStr = `${currentYear}`;
+
+      const monthYearKey = `${monthStr}-${yearStr}`;
+
+      const monthData = rbiInflationData[monthYearKey];
+
+      if (monthData && monthData[dataKey]) {
+
+        forecasts.push({
+          monthName: monthNames[monthStr],
+          year: yearStr,
+          rate: monthData[dataKey]
+        });
+
+      }
+
+      currentMonth++;
+
+      if (currentMonth > 12) {
+        currentMonth = 1;
+        currentYear++;
+      }
+    }
+
+    return forecasts;
+  };
+
+  // Charts
+  useEffect(() => {
+
+    if (forecastData.length === 0) return;
+
+    const labels = forecastData.map(item => item.date);
+    const prices = forecastData.map(item => item.price);
+
+    Chart.getChart("lineChart")?.destroy();
+    Chart.getChart("barChart")?.destroy();
+
+    // Line Chart
+    new Chart(lineChartRef.current, {
+      type: "line",
+      data: {
+        labels,
+        datasets: [{
+          label: "Price",
+          data: prices,
+          borderColor: "#10b981",
+          backgroundColor: "rgba(16,185,129,0.2)",
+          borderWidth: 4,
+          tension: 0.4,
+          fill: true,
+          pointBackgroundColor: "#059669",
+          pointRadius: 5
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false
+      }
+    });
+
+    // Bar Chart
+    new Chart(barChartRef.current, {
+      type: "bar",
+      data: {
+        labels,
+        datasets: [{
+          label: "Price",
+          data: prices,
+          backgroundColor: "#059669",
+          borderRadius: 10
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false
+      }
+    });
+
+  }, [forecastData]);
+
+  // KPI
+  const latest = forecastData.at(-1);
+
+  const prices = forecastData.map((d) => d.price);
+
+  const avg =
+    prices.length > 0
+      ? (
+          prices.reduce((a, b) => a + b, 0) / prices.length
+        ).toFixed(2)
+      : 0;
+
+  const max = prices.length ? Math.max(...prices) : 0;
+
+  const min = prices.length ? Math.min(...prices) : 0;
+
+  const rbiForecasts = getRbi6MonthForecast();
+
+  const formattedProduct = product
+    .replace("_", " ")
+    .toUpperCase();
+
+  return (
+
+    <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-green-100 relative overflow-hidden text-gray-800">
+
+      {/* Background */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+
+        <div className="absolute top-20 left-10 w-72 h-72 bg-green-300/30 rounded-full blur-3xl"></div>
+
+        <div className="absolute top-40 right-20 w-96 h-96 bg-emerald-200/40 rounded-full blur-3xl"></div>
+
+        <div className="absolute bottom-20 left-1/3 w-80 h-80 bg-teal-200/30 rounded-full blur-3xl"></div>
+
+        <div className="absolute bottom-40 right-10 w-64 h-64 bg-green-200/30 rounded-full blur-3xl"></div>
+
+      </div>
+
+      <div className="relative z-10 p-6 md:p-10">
+
+        {/* Header */}
+        <div className="text-center mb-12">
+
+          <div className="inline-flex items-center gap-3 bg-green-100 px-6 py-2 rounded-full border border-green-200 mb-6 shadow-sm">
+
+            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+
+            <span className="text-sm font-medium text-green-800">
+              AI-Powered Analytics
+            </span>
+
+          </div>
+
+          <h1 className="text-4xl md:text-5xl font-extrabold bg-gradient-to-r from-green-800 via-emerald-600 to-teal-700 bg-clip-text text-transparent mb-4">
+            Dairy Intelligence Dashboard
+          </h1>
+
+          <p className="text-gray-500 max-w-md mx-auto font-medium">
+            Real-time price forecasting powered by machine learning
+          </p>
+
+        </div>
+
+        {/* Controls */}
+        <div className="max-w-4xl mx-auto mb-10">
+
+          <div className="bg-white/80 backdrop-blur-xl border border-green-100 rounded-3xl p-6 md:p-8 shadow-xl shadow-green-100/50">
+
+            <div className="grid md:grid-cols-3 gap-6">
+
+              {/* Product */}
+              <div className="space-y-2">
+
+                <label className="text-sm text-gray-600 font-bold">
+                  Select Product
+                </label>
+
+                <select
+                  value={product}
+                  onChange={(e) => setProduct(e.target.value)}
+                  className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl"
+                >
+
+                  {products.map((p) => (
+                    <option key={p} value={p}>
+                      {productIcons[p]} {p.replace("_", " ").toUpperCase()}
+                    </option>
+                  ))}
+
+                </select>
+
+              </div>
+
+              {/* Date */}
+            <div className="space-y-2">
+
+  <label className="text-sm text-gray-600 font-bold">
+    Forecast Until
+  </label>
+
+  <input
+    type="date"
+    min="2025-01-01"
+    max="2027-12-31"
+    value={
+      date.split("-").reverse().join("-")
+    }
+    onChange={(e) => {
+      const formattedDate = e.target.value
+        .split("-")
+        .reverse()
+        .join("-");
+
+      setDate(formattedDate);
+    }}
+    className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl"
+  />
+
+  <p className="text-xs text-gray-500">
+    Select date till December 2027 only
+  </p>
+
+</div>
+
+              {/* Button */}
+              <div className="flex items-end">
+
+                <button
+                  onClick={getForecast}
+                  disabled={loading}
+                  className="w-full p-4 bg-gradient-to-r from-green-600 to-emerald-500 text-white font-bold rounded-xl"
+                >
+
+                  {loading ? "Processing..." : "Generate Forecast"}
+
+                </button>
+
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+
+        {/* RBI Forecast */}
+        {forecastData.length > 0 && rbiForecasts.length > 0 && (
+
+          <div className="max-w-4xl mx-auto mb-6 animate-fade-in">
+
+            <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5">
+
+              <h3 className="text-sm font-extrabold text-emerald-800 mb-4 uppercase">
+                RBI Official Insight: 6-Month Outlook for {formattedProduct}
+              </h3>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+
+                {rbiForecasts.map((forecast, idx) => (
+
+                  <div
+                    key={idx}
+                    className="bg-white rounded-xl p-3 border border-emerald-100 text-center"
+                  >
+
+                    <p className="text-xs font-bold text-gray-500 mb-1">
+                      {forecast.monthName.slice(0, 3)} '{forecast.year.slice(2)}
+                    </p>
+
+                    <p className="text-lg font-black text-emerald-700">
+                      {forecast.rate}
+                    </p>
+
+                  </div>
+
+                ))}
+
+              </div>
+
+            </div>
+
+          </div>
+
+        )}
+
+        {/* KPI */}
+        {forecastData.length > 0 && (
+
+          <div className="max-w-4xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
+
+            {[
+              {
+                label: "Latest Price",
+                value: latest?.price,
+                color: "text-emerald-600",
+                icon: "📍"
+              },
+              {
+                label: "Average",
+                value: avg,
+                color: "text-green-600",
+                icon: "📊"
+              },
+              {
+                label: "Maximum",
+                value: max,
+                color: "text-teal-600",
+                icon: "📈"
+              },
+              {
+                label: "Minimum",
+                value: min,
+                color: "text-cyan-600",
+                icon: "📉"
+              }
+            ].map((kpi, i) => (
+
+              <div
+                key={i}
+                className="bg-white border border-green-100 rounded-2xl p-5 shadow-lg"
+              >
+
+                <div className="flex items-center gap-2 mb-3">
+
+                  <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                    {kpi.icon}
+                  </div>
+
+                  <p className="text-sm text-gray-500 font-semibold">
+                    {kpi.label}
+                  </p>
+
+                </div>
+
+                <h2 className={`text-3xl font-black ${kpi.color}`}>
+                  ₹{kpi.value}
+                </h2>
+
+              </div>
+
+            ))}
+
+          </div>
+
+        )}
+
+        {/* Charts */}
+        {forecastData.length > 0 && (
+
+          <div className="max-w-4xl mx-auto space-y-6">
+
+            {/* Line Chart */}
+            <div className="bg-white rounded-3xl p-6 shadow-xl">
+
+              <h2 className="font-bold text-xl mb-6">
+                📈 Price Trend
+              </h2>
+
+              <div style={{ height: "400px" }}>
+
+                <canvas
+                  id="lineChart"
+                  ref={lineChartRef}
+                ></canvas>
+
+              </div>
+
+            </div>
+
+            {/* Bar Chart */}
+            <div className="bg-white rounded-3xl p-6 shadow-xl">
+
+              <h2 className="font-bold text-xl mb-6">
+                📊 Price Comparison
+              </h2>
+
+              <div style={{ height: "400px" }}>
+
+                <canvas
+                  id="barChart"
+                  ref={barChartRef}
+                ></canvas>
+
+              </div>
+
+            </div>
+
+            {/* Table */}
+            <div className="bg-white rounded-3xl p-6 shadow-xl">
+
+              <div className="flex justify-between mb-6">
+
+                <h2 className="font-bold text-xl">
+                  📋 Forecast Data
+                </h2>
+
+                <span className="text-sm font-bold text-emerald-700 bg-emerald-100 px-4 py-1 rounded-full">
+                  {forecastData.length} records
+                </span>
+
+              </div>
+
+              <div className="overflow-hidden rounded-xl border border-green-100">
+
+                <table className="w-full">
+
+                  <thead>
+
+                    <tr className="bg-gray-50 border-b border-green-100">
+
+                      <th className="text-left py-4 px-5 text-xs uppercase text-gray-500 font-bold">
+                        Date
+                      </th>
+
+                      <th className="text-left py-4 px-5 text-xs uppercase text-gray-500 font-bold">
+                        Predicted Price
+                      </th>
+
+                    </tr>
+
+                  </thead>
+
+                  <tbody>
+
+                    {forecastData.map((item, i) => (
+
+                      <tr
+                        key={i}
+                        className="border-b border-gray-100 hover:bg-green-50"
+                      >
+
+                        <td className="py-4 px-5 text-gray-600 font-medium">
+                          {item.date}
+                        </td>
+
+                        <td className="py-4 px-5">
+
+                          <span className="font-bold text-emerald-600">
+                            ₹ {item.price}
+                          </span>
+
+                        </td>
+
+                      </tr>
+
+                    ))}
+
+                  </tbody>
+
+                </table>
+
+              </div>
+
+            </div>
+
+          </div>
+
+        )}
+
+        {/* Empty State */}
+        {forecastData.length === 0 && (
+
+          <div className="max-w-4xl mx-auto">
+
+            <div className="bg-white border border-green-200 border-dashed rounded-3xl p-12 text-center">
+
+              <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                <span className="text-5xl">🥛</span>
+              </div>
+
+              <h3 className="text-2xl font-bold text-gray-800 mb-3">
+                No Forecast Data Yet
+              </h3>
+
+              <p className="text-gray-500 max-w-sm mx-auto font-medium">
+                Select a dairy product and target date, then click
+                "Generate Forecast" to see AI predictions.
+              </p>
+
+            </div>
+
+          </div>
+
+        )}
+
+      </div>
+
+    </div>
+
+  );
+}
+
+ReactDOM.createRoot(
+  document.getElementById("root")
+).render(<Forecast />);
+
+</script>
+
+</body>
+</html>
